@@ -1,0 +1,477 @@
+= Sample gperftools demo project
+
+This repository contains some simple programs that can be used to try
+some of the features and benefits of gperftools. It also demonstrates
+how to integrate it with your project. Although we currently only
+offer examples of autotools and Bazel integration.
+
+Let's start with some build instructions.
+
+== Bazel
+
+Checking recently added basic Bazel support was one of the motivations
+behind the project. So bazel support for gperftools-demo is reasonably
+well-tested.
+
+Things mostly work out of the box. We let Bazel pull all the
+dependencies, including the right versions of gperftools and abseil
+from the internet. All dependencies are built and linked as static
+libraries, which gives the best performance. But here are things worth
+keeping in mind:
+
+* The default Bazel build type (I think it is called fastbuild) is
+  basically nonsense. It provides neither optimization nor debug
+  information. So you want to pass `-c opt` to enable
+  optimizations. But also, if you plan to run the pprof tool on some
+  of the profiling artifacts, you will need at least line numbers and
+  function inlining debug information. On clang, you can pass `-gmlt`
+  (and I think this is the default for Google's internal version of
+  Bazel). I usually pass `-ggdb3` (by giving Bazel `--copt=-ggdb3`)
+  for maximum debug information. And since our demo programs and
+  dependencies are not huge, it works great.
+
+* Since all the dependencies are being rebuilt, it is easier to play
+  with fancier build options, such as building and linking with
+  clang's pass:[libc++]. The simplest way to do that with Bazel is
+  with something like this:
+
+....
+$ CC=clang bazel build -c opt --copt=-ggdb3 --copt=-march=skylake --copt=-stdlib=libc++ --linkopt=-stdlib=libc++ --copt=-fsized-deallocation :all
+....
+
+* Example above also enables sized delete optimizations in both
+  generated code and gperftools by using `-fsized-deallocations`. This
+  should be the default for GCC and newer Clang versions (19 and
+  later), but it is not a bad idea to pass it explicitly.
+
+* bazel'c `-c opt` automagically passes `-DNDEBUG`, so no need to
+  worry about it if you're exploring top performance.
+
+* overriding compiler is via `CC` environment variable (not `CXX`;
+  i.e., `gcc`/`clang` instead of `pass:[g++]`/`pass:[clang++]`, or
+  e.g., `CC=clang-17`). See example above.
+
+* Some programs benefit from newer instructions (wider memory copies,
+  popcount). I usually pass `-march=skylake` to enable codegen that
+  targets newer x86-es. See example above.
+
+* bazel places compiled programs in `./bazel-bin/`. I.e., you run
+  `./bazel-bin/trigram-index`.
+
+== Autotools
+
+After checking this out from Git, you'll need to generate a configure
+script and other build-related files. You'll need autoconf and
+automake installed. We also use pkg-config to find abseil and
+gperftools.
+
+On Debian-based systems, get the following packages:
+
+....
+$ apt install build-essential autoconf automake pkg-config libabsl-dev
+....
+
+While obtaining gperftools from your distribution is possible (this is
+libgoogle-perftools-dev on Debian and Ubuntu), some "demo" features
+will not work and complain (we need a feature that allows library
+users to programmatically update the heap sampling rate). So consider
+getting the freshest gperftools from GitHub and installing it
+somewhere. You'll then need to tell pkg-config where to find it. For
+example, like this:
+
+....
+$ apt install git libtool libunwind-dev # dependencies
+$ git clone https://github.com/gperftools/gperftools
+$ cd gperftools
+$ ./autogen.sh # this invokes autotools to produce the configure script and other artifacts
+$ ./configure --prefix ~/gpt # we want custom install prefix
+$ make -j`getconf _NPROCESSORS_ONLN` install # build and install
+$ cd ../
+$ git clone https://github.com/gperftools/gperftools-demo
+$ cd gperftools-demo
+$ autoreconf -i -f
+$ ./configure CPPFLAGS=-DNDEBUG PKG_CONFIG_PATH=$HOME/gpt/lib/pkgconfig LDFLAGS=-Wl,-rpath,$HOME/gpt/lib
+$ make ... etc
+....
+
+Many demo programs implement somewhat costly diagnostics when `NDEBUG`
+is not defined, so consider adding it to `CPPFLAGS` (as shown in the
+example above).
+
+When installing gperftools in a non-standard location (as in the
+example above) and building it as a shared library (which is the
+default for autotools), you may need to specify the rpath to the
+linker. See example above for one way to do it via the `LDFLAGS`
+variable.
+
+If you've installed gperftools as a static library, say, by passing
+--disable-shared --enable-static to gperftools' configure script, then
+rpath is unnecessary. And gperftools as a static library is a somewhat
+recommended option if you're aiming for top performance.
+
+As usual in autotools-based projects, you can override the used
+compiler by passing the `CXX` environment variable and pointing it to
+pass:[C++] compiler. E.g., `pass:[CXX=g++-15]`, etc.
+
+== Generalities
+
+The primary purpose of this repository is to demonstrate how to
+integrate your code with gperftools and showcase some of its most
+useful extensions.
+
+Please note that, while most programs in this repository show
+significant gains compared to glibc's malloc and even higher against
+Apple's OSX allocator, please be aware that not every real-world
+program will see similar (or even noticeable) gains.
+
+Therefore, I developed several small programs that exercise memory
+allocation to a sufficient extent to be visible in profiles. Each
+program gets built in 2 variants. One is linked with gperftools, and
+one isn't. Those second variants have `-sysmalloc` suffix added to
+their binary names. This lets people observe that yes, even today,
+when glibc's malloc performance isn't bad at all, there is still some
+performance headroom on a type of code that is somewhat typical in
+pass:[C++] world. In some cases, the difference is pretty dramatic.
+
+The choice of programs is by no means perfect. However, each offers
+some opportunity to learn performance tricks, examine memory usage, or
+analyze allocation patterns.
+
+Each "with gperftools" version of the program integrates with
+gperftools' API to gather a heap sample just before everything is
+cleaned up. You can use the pprof tool to see where memory was
+allocated and in which chunks it was allocated. Simply add the heap
+sample file name as an argument. E.g.:
+
+....
+$ ./bazel-bin/suffix-splay hs
+$ pprof --http=: hs
+....
+
+Those "gperftools-enabled" programs also print tcmalloc stats using
+the `MallocExtension` API at the end.
+
+Many programs utilize public-domain English language text,
+specifically "The History of the Decline and Fall of the Roman
+Empire," which is approximately 10 megabytes of ASCII text.
+
+Let's proceed to the list of programs.
+
+=== trigram-index
+
+Trigram index builds a very trivial positional index of all character
+trigrams in "The History of the Decline and Fall of the Roman
+Empire." And then uses this index to search occurrences of
+`pass:[/the\s+Roman\s+Empire/i]`.
+
+The trigram index is somewhat similar to
+https://github.com/google/codesearch, but their trigram index is
+non-positional and "only" uses the index to limit the set of files,
+which are then searched using a straightforward regular expression
+search. My demo/toy program code performs (mostly) substring searches
+only using the index, because the index is positional.
+
+I don't use "proper" efficient posting list encodings. Posting lists
+are merely std::vector-s of positions. And I don't use particularly
+efficient means of accessing them (just binary search; it matters in
+the most nested loops). And I have to repeat the entire thing 10 times
+to get anywhere close to a reasonable amount of CPU time to profile
+this. By far, most of the CPU time is spent building those trivial
+trigram posting lists.
+
+Malloc-wise, the workload involves appending elements to multiple
+vectors (posting lists). And then those vectors are deallocated.
+
+Using this program can be interesting for individuals who wish to
+practice CPU profiling skills. Since it runs relatively quickly (just
+2.3 seconds on my first-generation Framework 13 laptop), I recommend
+bumping the CPU profiler sampling frequency. I.e.
+
+....
+$ CPUPROFILE_FREQUENCY=1000 CPUPROFILE=p ./bazel-bin/trigram-index
+$ pprof --http=: p
+....
+
+There is something mildly interesting going on with the performance of
+a fairly straightforward indexing loop. My previous version of the
+code performed well with Clang but poorly (about twice as badly) with
+GCC. I made some adjustments, and now GCC is okay, but Clang is now
+bad. So, taking a closer look at this might be an interesting
+performance hunting/profiling exercise for the reader. I am talking
+about the following loop in main (of course, it heavily inlines most
+of the work):
+
+[source, c++]
+----
+    // Build positional trigram index.
+    for (uint32_t pos = 0; pos + 3 <= s.size(); pos++) {
+      Trigram g = Trigram::FromStringAt(s, pos);
+      g.Spacify();
+      index[g].push_back(pos);
+    }
+----
+
+=== coloring
+
+Coloring program finds a 4-coloring of a planar graph. The graph is
+relatively large, with 32768 nodes. Thanks to a few relatively simple
+heuristics, it quickly finds the coloring.
+
+The program uses backtracking with a persistent (aka copy-on-write)
+array representing a set of possible colors for each node. Persistence
+of this array is what makes the coloring program interesting from a
+memory allocation perspective. As part of assigning colors to nodes
+and propagating relevant candidates to nearby nodes, we're building a
+new version of the coloring array. And by using a typical persistent
+array implementation, we're able to copy fewer bytes per recursion
+step and keep the implementation simpler (no undo lists or
+similar). I.e., when backtracking from a wrong choice, we simply
+discard bad coloring.
+
+The graph to color is planar and was built essentially by Gemini. It
+gave me a Python script that put some random 2-dimensional points and
+built a Voronoi diagram from them (exercising some numpy stuff). I
+didn't bother to check the script, but the graph is indeed
+4-colorable.
+
+=== knight-path
+
+The Knight's Path program solves the Knight's Tour problem
+(https://en.wikipedia.org/wiki/Knight%27s_tour).
+
+It was actually proposed and nearly entirely implemented by
+Gemini. Similar to a coloring program, I was hoping to come up with a
+backtracking problem where I could use a persistent data structure to
+track its state. But the knight's path has such a successful heuristic
+that it is too easy to solve. And there is not much backtracking
+involved.
+
+However, thanks to great heuristics, we're able to solve the knight's
+tour to somewhat large sizes. And "naive" recursion breaks the default
+stack limit on my typical GNU/Linux machine. So it was a great excuse
+to let Gemini implement pass:[C++] async/coroutines way of
+recursion. I.e., where stack frames are essentially dynamically
+allocated. This is what the knight-path and knight-path-sysmalloc
+programs do. Default settings for those programs are "impossible"
+problems, allowing us to observe the rate of backtracking steps. We
+can see that decent malloc has a significant contribution to the rate
+of async function calls. The difference is particularly large on my OS
+X testing box at a 2x backtracking rate (this includes not just the
+cost of async calls, but also some non-trivial work in those invoked
+functions).
+
+Since knight-path programs accept board size and other options, I've
+hardcoded the gperftools version to always write the "heap-sample"
+file. With the help of pprof, we can see that on my machine, Clang
+allocates 272-byte "async" stack frames. I usually run `pprof --http=:
+heap-sample', which starts pprof in web server mode and spawns a
+browser that allows me to interact with the profile.
+
+In addition to a "coroutine-ful" solution, we also have a build
+configuration that simply bumps the stack size and then runs regular
+recursion. I.e., so we can compare plain recursion versus the
+async/coroutines way. This configuration is built as a
+`knight-path-stack` program. We can see that good-old-stack is about
+1.5 times faster than dynamically allocated stack frames on this
+problem (again, this difference includes total work, not just the
+overhead of function calls).
+
+=== suffix-XYZ programs
+
+Not having a better idea, I chose to put all the suffixes of the Roman
+history book into various kinds of ordered map implementations. Some
+of those implementations are persistent (so lean on malloc more
+heavily). Non-persistent implementations still experience some
+performance benefits from gperftools over glibc's malloc, but the
+memory allocator workload is somewhat less complex. Those programs
+tend to allocate chunks of memory and then free them in a reshuffled
+order.
+
+A suffix map enables us to quickly locate specific substrings within
+the text. And so, programs construct the suffix map and then search
+for either all, one, or some occurrences of "the Roman Empire".
+
+*BIG FAT WARNING:* While the idea of suffix maps is kinda cool, in
+ practice, you don't really do suffix maps. If you really need to do
+ this kind of index, you want to look at suffix arrays. You'll win
+ _massively_ not just in CPU time, but also in the amount of RAM used.
+
+==== suffix-map
+
+The suffix map program uses a plain std::set of std::string_views. So
+basically, it puts strings into a red-black tree.
+
+With around 10 million nodes, the memory overhead is kinda large-ish,
+and the main performance bottlenecks are cache misses when accessing
+tree nodes and when accessing string data.
+
+Suffixes of the text that we use don't have very large common
+prefixes. String comparisons are relatively inexpensive, with most of
+the cost being the access to the first cache line of memory for the
+suffix being compared.
+
+==== suffix-btree
+
+The suffix btree program uses the Abseil btree implementation. If we
+somehow forget about the most straightforward suffix arrays, B-trees
+are about as good as you can get when doing ordered sets or
+maps. Compared to red-black trees, we access a lot fewer tree nodes
+and thus incur fewer cache misses. Consequently, this variant ends up
+being the fastest (in some builds, I see persistent B-tree running
+slightly faster).
+
+==== suffix-btree-persistent
+
+Persistent btree program implements (subset of operations of) a fairly
+straightforward refcounted (mostly) immutable persistent btree. This
+is a fresh implementation. And I tried to keep it as "orthodox" and
+simple and optimized for the reader as much as possible. With a couple
+of notable deviations from simple and straightforward:
+
+* Most internal functions return "naked" node pointers instead of the
+  smart pointer we have in this code (NodePtr). This is because of
+  pass:[C++] performance fiasco w.r.t. smart pointers. Hopefully (and
+  in my opinion), the readability cost of this decision is close to
+  negligible.
+
+* I came up with a curious insertion fast-path implementation. Most
+  insertions, definitely in this program, deal with nodes that have a
+  reference count of 1. So, basically, we're the only
+  owner. Additionally, most insertions don't require splitting
+  anything. For those cases, fast-path still copies-on-write the leaf
+  node, to keep things simple, but full-scale recursion and copying of
+  internal nodes are avoided. Notably, this small and still relatively
+  readable addition saves most of the overhead of the B-tree
+  persistence. The result is that this implementation is competitive
+  with the state-of-the-art imperative Abseil B-tree code! Notably,
+  other persistent B-tree implementations have a dedicated "transient
+  operations" API for the case of sequentially applying multiple
+  updates that save extra copies; however, we're able to (mostly) save
+  them automatically.
+
+* This code only implements insertions and the simplest form of the
+  lower-bound operation, since we don't need anything else for the
+  suffix map use-case. Therefore, it is not entirely production-ready.
+
+==== suffix-avl{,-persistent}
+
+The suffix AVL program uses some AVL tree code I wrote a few years
+ago, but didn't have a specific use case to apply it to. While the
+code is not entirely production-ready, it has all the basics right, as
+far as I can see. Since the suffix map workload is insertions-only,
+this is the use case where the AVL tree easily beats the Red-Black
+tree.
+
+This imperative AVL program also has (turned off by default) an
+optimization that places the first 16 bytes of the suffix into the
+node. As expected, this significantly reduces cache misses, at the
+cost of extra memory usage (which is still relatively trivial, given
+that we're indexing mere 10 megs of text).
+
+Another AVL implementation is a freshly implemented and mostly
+straightforward copy-on-write persistent AVL tree
+implementation. Similarly, to the persistent B-tree, the focus was on
+keeping the code as straightforward, idiomatic, and readable as
+possible. Similar to persistent B-trees, this code also uses naked
+pointers internally, which adds a tiny element of surprise, but I had
+a good reason for doing it.
+
+Persistent AVL trees do full "honest" copying of nodes on the entire
+path from root to the leaf on each insertion. As expected, this is
+where malloc's performance is most noticeable. And as expected, it is
+the slowest implementation.
+
+Perhaps, a somewhat similar fast-path optimization to what I did with
+B-trees is possible, but I haven't tried it. And I think "happy case"
+of not needing to balance anything is going to be less frequent here,
+since we're dealing with only a 2-arity tree.
+
+==== suffix-critbit-tree
+
+The critbit-tree program utilizes an implementation of the
+critbit-tree written by Gemini (2.0). Gemini needed a bit of
+hand-holding, but it was a fun exercise. Still, I regret letting it do
+the code a bit too idiomatic for pass:[C++]. I.e., it uses
+std::variant to distinguish internal and external node pointers. This
+probably affected the performance somewhat. It would be interesting to
+compare this to a more performance-focused implementation. The outcome
+is, somewhat surprisingly, a relatively slow suffix map
+implementation.
+
+==== suffix-trie
+
+The Suffix Trie program contains a somewhat elaborate attempt to
+produce a decent Trie (aka digital tree) implementation. It is not
+your most trivial trie implementation from the textbook. Similarly
+elaborate implementations are commonly called Patricia trees, but my
+implementation is not entirely "it".
+
+The result is somewhat decent performance, better than AVL or
+Red-Black trees, and at not too bad RAM consumption.
+
+==== suffix-treap
+
+A treap is one of the simplest possible, nearly balanced search
+trees. The suffix treap program has a straightforward implementation.
+
+Notably, the Wikipedia article for Treap doesn't describe the best
+approach to implement insertions (or deletions). Wikipedia describes
+performing a "naive" unbalanced insertion followed by rotations up to
+the correct depth (according to the priority). It is much more
+straightforward to implement "at leaf" insertion until you reach the
+correct depth, and then perform split and construct a new node with
+the value being inserted and the left/right subtrees from the split
+operation.
+
+My implementation handles split tail-recursively, so it is both
+readable and quick. And it would be trivial to transform this tail
+recursion (which isn't guaranteed in C++) to actual iteration in the
+production version of this code. I welcome people to look at the code.
+
+Treap ends up being relatively slow because, at least at those larger
+10 million-node trees, it is sufficiently unbalanced in practice to be
+noticeable.
+
+==== suffix-splay{,-classic}
+
+The suffix splay program implements a top-down splay tree. I was
+actually quite surprised to (re)discover this approach (which is
+mentioned in the original splay trees paper, but somehow
+disregarded). The top-down approach is definitely a simpler way to
+implement splay trees than what is taught in classic textbooks or
+Wikipedia.
+
+I use essentially the same "insert-is-split" approach as my treaps
+implementation, with the same tail-recursion trick. And, of course, we
+have a bit of extra complexity since we need to check two levels of
+the tree at once; otherwise, this is surprisingly nice, at least in my
+humble opinion.
+
+Performance is also excellent. I was really surprised to see that it
+easily beats all other binary trees. In fact, I don't quite understand
+where this much better performance comes from.
+
+Yes, we splay and so, supposedly, move more frequent nodes
+up. However, I've added code to track the actual depth we reach in
+each insertion, and it is slightly higher than the depth of AVL
+trees. Sure, the per-node work itself is much smaller than in AVL or
+Red-Black trees. However, as noted above, we're primarily constrained
+by cache misses. And, yes, despite going on average deeper than AVL
+trees, we do see fewer cache misses with this code. Why that happens
+is not clear to me. So, perhaps, something to investigate later. And
+of course, that this splay tree performs well on the suffix map
+use-case doesn't mean it will perform as well on other search tree
+use-cases.
+
+In this program, I also implemented a simpler "move-to-top" insertion
+implementation (i.e., not doing zig-zag cases) and "naive" unbalanced
+insertions. Just to compare. And, indeed, we see that proper splaying
+is beneficial (despite a bit more complexity compared to move-to-top).
+
+The suffix splay classic program contains an entirely textbook splay
+tree. I let Gemini (2.5 Pro) implement it and asked it to add a couple
+of the most straightforward optimizations on top (i.e., open-code
+zig-zig/zig-zag rotations). This program does insertion at the leaf
+and splays up. The performance of this version is nearly on par with
+the red-black tree, but far from the top-down version I implemented
+myself.
