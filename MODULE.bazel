@@ -1,6 +1,2 @@
-
-bazel_dep(name = "gperftools", version = "2.16.90")
-
-git_override(module_name = "gperftools", remote = "https://github.com/gperftools/gperftools", commit = "940be25e1c5d12d776654670c38a994b2053da0c")
-
-bazel_dep(name = "abseil-cpp", version = "20250127.1")
+bazel_dep(name = "gperftools", version = "2.17.2")
+bazel_dep(name = "abseil-cpp", version = "20250814.1")
