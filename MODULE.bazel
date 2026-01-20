@@ -1,2 +1,2 @@
 bazel_dep(name = "gperftools", version = "2.17.2")
-bazel_dep(name = "abseil-cpp", version = "20250814.1")
+bazel_dep(name = "abseil-cpp", version = "20260107.0")
