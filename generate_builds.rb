@@ -241,6 +241,34 @@ class CompileCommandsGen
   end
 end
 
+class CMakeGen
+  module D
+    extend self
+    def tcmalloc; "gperftools::tcmalloc"; end
+    def cpu_profiler; "gperftools::profiler"; end
+    def absl_btree; "absl::btree"; end
+  end
+  def deps; D; end
+
+  def initialize
+    puts(<<~HERE)
+      # Note, this file is auto-generated from generate_builds.rb. So if you
+      # intend to make longer-lasting changes, make them over there.
+    HERE
+  end
+
+  def add_binary(name:, srcs:, deps: nil, defines: nil, uses_roman_history: false)
+    puts "\nadd_executable(#{name} #{srcs.join(' ')})"
+
+    if defines && !defines.empty?
+      puts "target_compile_definitions(#{name} PRIVATE #{defines.join(' ')})"
+    end
+
+    link_deps = (deps || []) + ["Threads::Threads"]
+    puts "target_link_libraries(#{name} PRIVATE #{link_deps.join(' ')})"
+  end
+end
+
 def replacing_stdout!(f, &block)
   if f.kind_of? String
     return File.open(f, "w") {|io| replacing_stdout!(io, &block)}
@@ -268,4 +296,8 @@ end
 
 replacing_stdout! "compile_commands.json" do
   CompileCommandsGen.new.tap {|b| gen!(b)}.finalize!
+end
+
+replacing_stdout! "targets.cmake" do
+  gen!(CMakeGen.new)
 end

@@ -6,6 +6,7 @@
 /aclocal.m4
 /autom4te.cache
 /bazel-*
+/build
 /coloring
 /coloring-sysmalloc
 /config.log
