@@ -123,9 +123,8 @@ To build the project using CMake, you can use the following commands:
 
 ....
 $ mkdir build
-$ cd build
-$ cmake .. -DCMAKE_BUILD_TYPE=Release
-$ cmake --build . -j
+$ cmake -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -B build
+$ ninja -C build
 ....
 
 This will download and build Abseil and gperftools, and then build the
@@ -136,7 +135,7 @@ You can also pass standard CMake options. For example to use a specific
 compiler:
 
 ....
-$ cmake .. -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release
+$ CXX=clang++ cmake -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -B build
 ....
 
 == Generalities
