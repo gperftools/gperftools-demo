@@ -113,6 +113,31 @@ As usual in autotools-based projects, you can override the used
 compiler by passing the `CXX` environment variable and pointing it to
 pass:[C++] compiler. E.g., `pass:[CXX=g++-15]`, etc.
 
+== CMake
+
+We also have basic CMake support. Similar to Bazel, we set things up to
+pull dependencies automatically. We use CPM.cmake to fetch Abseil, and
+ExternalProject to download and build gperftools.
+
+To build the project using CMake, you can use the following commands:
+
+....
+$ mkdir build
+$ cmake -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -B build
+$ ninja -C build
+....
+
+This will download and build Abseil and gperftools, and then build the
+demo programs. The compiled binaries will be located in the `build`
+directory.
+
+You can also pass standard CMake options. For example to use a specific
+compiler:
+
+....
+$ CXX=clang++ cmake -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -B build
+....
+
 == Generalities
 
 The primary purpose of this repository is to demonstrate how to
