@@ -1,5 +1,7 @@
 #!/usr/bin/ruby
 
+require 'json'
+
 def gen!(b)
   programs = %w[trigram-index suffix-map
                 suffix-btree suffix-btree-persistent
@@ -202,6 +204,43 @@ HERE
   end
 end
 
+# generator for compiler_commands.json for tools like ccls or
+# clangd. Essentially required for modern IDEs like VSCode or Antigravity.
+class CompileCommandsGen
+  def deps; AMGen::D; end
+
+  def initialize
+    @entries = []
+  end
+
+  def add_binary(name:, srcs:, deps: nil, defines: nil, uses_roman_history: false)
+    return if name.end_with?("-sysmalloc") # want to index tcmalloc-ful compilations
+    flags = (defines || []).map {|d| "-D#{d}"}
+    includes = %w[abseil-cpp+ gperftools+/src].map do |path_frag|
+      "-Ibazel-gperftools-demo/external/#{path_frag}"
+    end
+
+    first_non_header = srcs.find {|f| !f.end_with?(".h")}
+    raise unless first_non_header
+
+    srcs.each do |filename|
+      cc_src = if filename.end_with?(".h")
+                 first_non_header
+               else
+                 filename
+               end
+      e = {directory: Dir.pwd,
+           file: filename,
+           arguments: ["g++", *flags, *includes, "-std=c++20", "-c", cc_src]}
+      @entries << e
+    end
+  end
+
+  def finalize!
+    puts JSON.pretty_generate(@entries)
+  end
+end
+
 def replacing_stdout!(f, &block)
   if f.kind_of? String
     return File.open(f, "w") {|io| replacing_stdout!(io, &block)}
@@ -225,4 +264,8 @@ end
 
 replacing_stdout! "Makefile.am" do
   AMGen.new.tap {|b| gen!(b)}.finalize!
+end
+
+replacing_stdout! "compile_commands.json" do
+  CompileCommandsGen.new.tap {|b| gen!(b)}.finalize!
 end
