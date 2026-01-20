@@ -3,6 +3,7 @@
 #define CRITBIT_TREE_H_
 
 // C Standard Libraries
+#include <assert.h>  // For assert (used in validation failure)
 #include <stddef.h>  // For size_t
 #include <stdint.h>  // For fixed-width integers (if needed later)
 #include <stdio.h>   // For printf (used in validation failure)

@@ -1,7 +1,7 @@
 // -*- Mode: C++; c-basic-offset: 2; indent-tabs-mode: nil -*-
-#include <fstream>
-#include <sstream>
 #include <string>
+#include <string_view>
+#include <algorithm>
 
 #include <assert.h>
 #include <stdio.h>

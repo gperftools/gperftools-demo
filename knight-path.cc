@@ -13,7 +13,6 @@
 #include <optional>
 #include <span>       // For std::span
 #include <stdexcept> // For std::runtime_error
-#include <string>    // For std::string used in error messages
 #include <thread>    // For std::thread (used by ReporterThread)
 #include <tuple>     // For returning multiple values from ParseArguments
 #include <utility>   // For std::pair
@@ -23,7 +22,6 @@
 #include <math.h>      // For std::pow (used in distance calc)
 #include <pthread.h>  // Use POSIX threads directly
 #include <semaphore.h>
-#include <signal.h>
 #include <stdint.h>    // For uint8_t, uint64_t
 #include <stdio.h>     // For printf, fprintf
 #include <stdlib.h>    // For std::atoi, EXIT_FAILURE, EXIT_SUCCESS, abort

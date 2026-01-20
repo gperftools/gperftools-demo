@@ -2,10 +2,12 @@
 #include <algorithm>
 #include <bit>
 #include <functional>
-#include <optional>
+#include <new>
 #include <span>
 #include <string>
 #include <string_view>
+#include <tuple>
+#include <utility>
 
 #include <assert.h>
 #include <stdio.h>

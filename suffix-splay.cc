@@ -1,11 +1,9 @@
 // -*- Mode: C++; c-basic-offset: 2; indent-tabs-mode: nil -*-
 // #undef NDEBUG
 #include <algorithm>
-#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
-#include <utility>
 
 #include <assert.h>
 #include <stdio.h>

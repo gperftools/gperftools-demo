@@ -4,9 +4,9 @@
 
 #include <assert.h>
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
 
 #include <algorithm>
 #include <array>
@@ -16,8 +16,8 @@
 #include <memory>
 #include <optional>
 #include <random>
-#include <ranges>
 #include <span>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>

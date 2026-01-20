@@ -3,9 +3,11 @@
 #include <functional>
 #include <numeric>
 #include <ranges>
+#include <span>
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include <assert.h>
