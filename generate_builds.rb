@@ -57,6 +57,8 @@ class BazelGen
     puts(<<HERE)
 # Note, this file is auto-generated from generate_builds.rb. So if you
 # intend to make longer-lasting changes, make them over there.
+
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 HERE
   end
 
