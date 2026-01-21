@@ -138,6 +138,42 @@ compiler:
 $ CXX=clang++ cmake -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -B build
 ....
 
+== Using IDEs
+
+Modern IDEs take advantage of powerful C++ LSP (language server
+protocol) implementations. clangd is by far the most popular
+implementation. Clangd and a number of related tools need
+compile_commands.json to correctly index the source.
+
+If you’re using cmake, it will automatically produce
+compile_commands.json. If you build in the typical “build”
+directory (as seen in the example above), clangd should correctly
+find the compile commands. One important detail: ensure you build
+your project first. When this project is built, the gperftools
+dependency is downloaded and built. Before that, clangd will fail
+to process the “include” of the gperftools/malloc_extensions.h header.
+If you opened the project before it was built, you may need to restart
+the language server (e.g., “clangd: Restart language server” in VS Code).
+
+With Bazel or Autotools, you will need to generate
+compile_commands.json yourself. There are two options:
+
+1. Run the bazel_cc_meta extension:
++
+   bazel run @bazel_cc_meta//cc_meta:refresh_all
++
+Note: You must run “bazel build” on the project first.  The advantage
+of this approach is that it puts the entire build tree into the
+compile commands, allowing clangd to index dependencies like Abseil
+and gperftools. It also correctly handles the demo-helper.h header.
+
+2. Run the ./generate_build.rb script.
++
+Its main purpose is to produce build instructions, but it also writes
+compile_commands.json. This version will only cover the code in this
+repository (not dependencies), but it has the advantage of not
+requiring Bazel.
+
 == Generalities
 
 The primary purpose of this repository is to demonstrate how to
