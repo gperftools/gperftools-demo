@@ -2,7 +2,6 @@
 #include <algorithm>
 #include <bit>
 #include <functional>
-#include <new>
 #include <span>
 #include <string>
 #include <string_view>
