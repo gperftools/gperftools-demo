@@ -1,4 +1,5 @@
 *.o
+/.cache
 /.deps
 /MODULE.bazel.lock
 /Makefile
