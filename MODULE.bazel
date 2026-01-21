@@ -3,7 +3,7 @@ bazel_dep(name = "abseil-cpp", version = "20260107.0")
 
 git_override(
     module_name = "gperftools",
-    commit = "868a588ad8afd5e6c9b795363a83fea282ecd491",
+    commit = "b61b3c7f92c3f90edd3002a90d1950316299e54e",
     remote = "https://github.com/gperftools/gperftools",
 )
 
