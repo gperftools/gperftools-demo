@@ -9,13 +9,13 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <semaphore>
 #include <sstream>
 #include <string>
 #include <string_view>
 #include <thread>
 
 #include <errno.h>
-#include <semaphore.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,6 +23,17 @@
 
 #ifdef WE_HAVE_TCMALLOC
 #include <gperftools/malloc_extension.h>
+#endif
+
+#if defined(__GNUC__)
+#define ALWAYS_INLINE __attribute__((always_inline)) inline
+#else
+#define ALWAYS_INLINE inline
+#endif
+
+#ifndef __GNUC__
+#define __builtin_trap() abort()
+#define __builtin_prefetch(...)
 #endif
 
 inline
@@ -168,23 +179,15 @@ public:
 
   static Cleanup OnSIGINT(std::function<bool()>&& body) {
     struct State {
-      sem_t sigint_sem;
+      std::counting_semaphore<> sigint_sem{0};
       std::mutex handlers_lock;
       std::thread thread;
       std::list<std::function<bool()>> handlers;
-      bool sem_init_failed = false; // Damned OSX....
 
       State() {
-        if (sem_init(&sigint_sem, 0, 0) != 0) {
-          perror("sem_init");
-          fprintf(stderr, "SIGINT won't be intercepted\n");
-          sem_init_failed = true;
-          return;
-        }
-
         thread = std::thread([&] () {
           for (;;) {
-            (void)sem_wait(&sigint_sem);
+            sigint_sem.acquire();
             std::lock_guard l(handlers_lock);
 
             bool at_least_once = false;
@@ -208,13 +211,11 @@ public:
     static State* state;
     static bool setup_done = ([] () -> bool {
       state = new State;
-      if (!state->sem_init_failed) {
-        signal(SIGINT, +[] (int dummy) -> void {
-          int save_errno = errno;
-          sem_post(&state->sigint_sem);
-          errno = save_errno;
-        });
-      }
+      signal(SIGINT, +[] (int dummy) -> void {
+        int save_errno = errno;
+        state->sigint_sem.release();
+        errno = save_errno;
+      });
       return true;
     })();
     (void)setup_done;

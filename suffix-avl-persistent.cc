@@ -80,7 +80,7 @@ struct Node {
     return right.Get();
   }
 
-  static __attribute__((always_inline))
+  static ALWAYS_INLINE
   const Node* MakeAndRebalance(const Node* left, std::string_view value, const Node* right) {
     int balance = BalanceOf(left, right);
     if ((balance & 3) != 2) {

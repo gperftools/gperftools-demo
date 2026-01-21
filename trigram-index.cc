@@ -15,7 +15,13 @@
 #include <stdint.h>
 #include <string.h>
 
+#ifdef _WIN32
+#include <io.h>
+#define isatty _isatty
+#define fileno _fileno
+#else
 #include <unistd.h> // for isatty
+#endif
 
 #include "demo-helper.h"
 

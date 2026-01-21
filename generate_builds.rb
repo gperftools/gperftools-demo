@@ -20,11 +20,13 @@ def gen!(b)
                  deps: [b.deps.cpu_profiler, b.deps.tcmalloc] + extra_dep,
                  srcs: [name + ".cc", "demo-helper.h"] + extra_hdr,
                  defines: ["WE_HAVE_TCMALLOC"],
-                 uses_roman_history: true)
+                 uses_roman_history: true,
+                 no_windows: name == "coloring")
     b.add_binary(name: name + "-sysmalloc",
                  deps: [b.deps.cpu_profiler] + extra_dep,
                  srcs: [name + ".cc", "demo-helper.h"] + extra_hdr,
-                 uses_roman_history: true)
+                 uses_roman_history: true,
+                 no_windows: name == "coloring")
   end
 
   begin
@@ -36,7 +38,7 @@ def gen!(b)
     # knight-path program has 3 variants defined by appending the
     # following modifications to the 'base' definition
     [{deps: [b.deps.tcmalloc], defines: ["WE_HAVE_TCMALLOC"]},
-     {name: "-stack", deps: [b.deps.tcmalloc], defines: ["WE_HAVE_TCMALLOC", "USE_POSIX_THREAD_RECURSION"]},
+     {name: "-stack", deps: [b.deps.tcmalloc], defines: ["WE_HAVE_TCMALLOC", "USE_POSIX_THREAD_RECURSION"], no_windows: true},
      {name: "-sysmalloc"}].each do |h|
       b.add_binary(**(base_kp.merge(h) {|k, v1, v2| v1 + v2}))
     end
@@ -46,8 +48,8 @@ end
 class BazelGen
   module D
     extend self
-    def tcmalloc; "@gperftools//:tcmalloc"; end
-    def cpu_profiler; "@gperftools//:cpu_profiler"; end
+    def tcmalloc; :tcmalloc; end
+    def cpu_profiler; :cpu_profiler; end
     def absl_btree; "@abseil-cpp//absl/container:btree"; end
   end
 
@@ -59,28 +61,63 @@ class BazelGen
 # intend to make longer-lasting changes, make them over there.
 
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
+
+DEFAULT_COPTS = select({
+    "@bazel_tools//src/conditions:windows": ["/std:c++20"],
+    "//conditions:default": ["-std=c++20"],
+})
+
+TCMALLOC_DEPS = select({
+    "@bazel_tools//src/conditions:windows": ["@gperftools//:tcmalloc_minimal"],
+    "//conditions:default": ["@gperftools//:tcmalloc"],
+})
+
+PROFILER_DEPS = select({
+    "@bazel_tools//src/conditions:windows": [],
+    "//conditions:default": ["@gperftools//:cpu_profiler"],
+})
 HERE
   end
 
-  def add_binary(name:, srcs:, deps: nil, defines: nil, uses_roman_history: false)
-    entries = {name: name, srcs: srcs,
-               copts: ["-std=c++20"], defines: defines,
-               deps: deps,
-               data: (if uses_roman_history then ["the-history-of-the-decline-and-fall-of-the-roman-empire.txt"] end)}
-
+  def add_binary(name:, srcs:, deps: nil, defines: nil, uses_roman_history: false, no_windows: false)
     puts "\ncc_binary("
-    entries.each_pair do |k, v|
-      next unless v
-      next if v.respond_to?(:empty?) && v.empty?
+    puts "    name = #{name.inspect},"
+    puts "    srcs = #{srcs.inspect},"
+    puts "    copts = DEFAULT_COPTS,"
+    
+    if defines && !defines.empty?
+      puts "    defines = #{defines.inspect},"
+    end
 
-      if k == :deps && v.size > 1
-        v = v.sort.reverse
-        print "    deps = [#{v.first.inspect}"
-        v[1..-1].each {|d| print ",\n            #{d.inspect}"}
-        puts ",\n            ],"
-      else
-        puts "    #{k} = #{v.inspect},\n"
+    if deps && !deps.empty?
+      dep_vars = []
+      literal_deps = []
+      deps.each do |d|
+        case d
+        when :tcmalloc then dep_vars << "TCMALLOC_DEPS"
+        when :cpu_profiler then dep_vars << "PROFILER_DEPS"
+        else literal_deps << d
+        end
       end
+      
+      parts = dep_vars
+      unless literal_deps.empty?
+         literal_deps = literal_deps.sort.reverse
+         parts << literal_deps.inspect
+      end
+      
+      puts "    deps = #{parts.join(' + ')},"
+    end
+
+    if no_windows
+      puts "    target_compatible_with = select({"
+      puts "        \"@bazel_tools//src/conditions:windows\": [\"@platforms//:incompatible\"],"
+      puts "        \"//conditions:default\": [],"
+      puts "    }),"
+    end
+
+    if uses_roman_history
+      puts "    data = [\"the-history-of-the-decline-and-fall-of-the-roman-empire.txt\"],"
     end
     puts ")"
   end
@@ -154,7 +191,7 @@ EXTRA_DIST = README.adoc LICENSE \
 HERE
   end
 
-  def print_prog_definition!(name:, srcs:, deps:, defines: [], uses_roman_history: false)
+  def print_prog_definition!(name:, srcs:, deps:, defines: [], uses_roman_history: false, no_windows: false)
     u = name.gsub("-", "_")
     print_var!("#{u}_SOURCES", srcs)
     unless defines.empty?
@@ -215,7 +252,7 @@ class CompileCommandsGen
     @entries = []
   end
 
-  def add_binary(name:, srcs:, deps: nil, defines: nil, uses_roman_history: false)
+  def add_binary(name:, srcs:, deps: nil, defines: nil, uses_roman_history: false, no_windows: false)
     return if name.end_with?("-sysmalloc") # want to index tcmalloc-ful compilations
     flags = (defines || []).map {|d| "-D#{d}"}
     includes = %w[abseil-cpp+ gperftools+/src].map do |path_frag|
@@ -259,7 +296,7 @@ class CMakeGen
     HERE
   end
 
-  def add_binary(name:, srcs:, deps: nil, defines: nil, uses_roman_history: false)
+  def add_binary(name:, srcs:, deps: nil, defines: nil, uses_roman_history: false, no_windows: false)
     puts "\nadd_executable(#{name} #{srcs.join(' ')})"
 
     if defines && !defines.empty?
@@ -273,7 +310,7 @@ end
 
 def replacing_stdout!(f, &block)
   if f.kind_of? String
-    return File.open(f, "w") {|io| replacing_stdout!(io, &block)}
+    return File.open(f, "wb") {|io| replacing_stdout!(io, &block)}
   end
 
   io = STDOUT.dup

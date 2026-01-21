@@ -20,12 +20,14 @@
 
 #include <assert.h>    // For assert()
 #include <math.h>      // For std::pow (used in distance calc)
-#include <pthread.h>  // Use POSIX threads directly
-#include <semaphore.h>
 #include <stdint.h>    // For uint8_t, uint64_t
 #include <stdio.h>     // For printf, fprintf
 #include <stdlib.h>    // For std::atoi, EXIT_FAILURE, EXIT_SUCCESS, abort
 #include <string.h>    // For memcpy, strerror
+
+#ifdef USE_POSIX_THREAD_RECURSION
+#include <pthread.h>
+#endif
 
 #include "demo-helper.h"
 
