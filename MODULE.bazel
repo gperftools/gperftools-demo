@@ -1,9 +1,10 @@
 bazel_dep(name = "gperftools", version = "2.17.2")
 bazel_dep(name = "abseil-cpp", version = "20260107.0")
 
-git_override(module_name = "gperftools",
-             commit = "868a588ad8afd5e6c9b795363a83fea282ecd491",
-             remote = "https://github.com/gperftools/gperftools",
+git_override(
+    module_name = "gperftools",
+    commit = "868a588ad8afd5e6c9b795363a83fea282ecd491",
+    remote = "https://github.com/gperftools/gperftools",
 )
 
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
