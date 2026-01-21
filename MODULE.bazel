@@ -1,2 +1,26 @@
 bazel_dep(name = "gperftools", version = "2.17.2")
 bazel_dep(name = "abseil-cpp", version = "20260107.0")
+
+git_override(module_name = "gperftools",
+             commit = "868a588ad8afd5e6c9b795363a83fea282ecd491",
+             remote = "https://github.com/gperftools/gperftools",
+)
+
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+bazel_dep(name = "bazel_skylib", version = "1.9.0")
+bazel_dep(name = "rules_python", version = "1.8.0")
+bazel_dep(name = "rules_cc", version = "0.2.16")
+bazel_dep(name = "rules_shell", version = "0.6.1")
+bazel_dep(name = "buildozer", version = "8.2.1")
+
+# Enables "bazel-native" generation of compile_commands.json. See
+# their github repo for more details.
+#
+# Run: bazel run @bazel_cc_meta//cc_meta:refresh_all
+bazel_dep(name = "bazel_cc_meta", version = "0.0.0")
+git_override(
+    module_name = "bazel_cc_meta",
+    commit = "6a534335a0375ccdbee9e63a5d78a64f22df0b25",
+    remote = "https://github.com/mikael-s-persson/bazel_cc_meta",
+)
