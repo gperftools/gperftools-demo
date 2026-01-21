@@ -58,6 +58,10 @@ $ CC=clang bazel build -c opt --copt=-ggdb3 --copt=-march=skylake --copt=-stdlib
 * bazel places compiled programs in `./bazel-bin/`. I.e., you run
   `./bazel-bin/trigram-index`.
 
+Bazel is for now the only build configuration that is working on
+Windows (without cpu profiling and without heap sampling; but with
+ability to observe performance benefit of gperftools).
+
 == Autotools
 
 After checking this out from Git, you'll need to generate a configure
