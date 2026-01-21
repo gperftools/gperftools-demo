@@ -3,8 +3,13 @@
 
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 
+config_setting(
+    name = "msvc_compiler",
+    flag_values = {"@bazel_tools//tools/cpp:compiler": "msvc-cl"},
+)
+
 DEFAULT_COPTS = select({
-    "@bazel_tools//src/conditions:windows": ["/std:c++20"],
+    ":msvc_compiler": ["/std:c++20"],
     "//conditions:default": ["-std=c++20"],
 })
 
