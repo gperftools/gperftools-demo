@@ -10,6 +10,7 @@
 /build
 /coloring
 /coloring-sysmalloc
+/compile_commands.json
 /config.log
 /config.status
 /configure
