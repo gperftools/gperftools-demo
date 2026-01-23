@@ -4,7 +4,7 @@ bazel_dep(name = "platforms", version = "1.0.0")
 
 git_override(
     module_name = "gperftools",
-    commit = "a29528dda654180907eb4569b36e34ecde34b3bd",
+    commit = "97008830337378a26547caffa4132ba1bcd3f22f",
     remote = "https://github.com/gperftools/gperftools",
 )
 
