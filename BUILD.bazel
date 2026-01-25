@@ -10,11 +10,11 @@ config_setting(
 
 DEFAULT_COPTS = select({
     ":msvc_compiler": ["/std:c++20"],
-    "//conditions:default": ["-std=c++20"],
+    "//conditions:default": ["-std=c++20 -fsized-deallocation"],
 })
 
 TCMALLOC_DEPS = select({
-    "@bazel_tools//src/conditions:windows": ["@gperftools//:tcmalloc_minimal"],
+    "@bazel_tools//src/conditions:windows": ["@gperftools//:tcmalloc_minimal_nopatch"],
     "//conditions:default": ["@gperftools//:tcmalloc"],
 })
 

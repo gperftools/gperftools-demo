@@ -26,7 +26,7 @@ CPMAddPackage(
 )
 
 # 4. gperftools (Autotools build)
-set(GPERFTOOLS_VERSION 2.17.2)
+set(GPERFTOOLS_VERSION 2.18)
 set(GPERFTOOLS_PREFIX "${CMAKE_CURRENT_BINARY_DIR}/gperftools_ext")
 set(GPERFTOOLS_SOURCE_DIR "${GPERFTOOLS_PREFIX}/src/gperftools_ext")
 set(GPERFTOOLS_BINARY_DIR "${GPERFTOOLS_PREFIX}/src/gperftools_ext-build")
